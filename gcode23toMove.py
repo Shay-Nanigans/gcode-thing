@@ -14,7 +14,7 @@ def convert(fileName):
     newFile = open(dirOut+"/"+fileName,"w")
     for line in file:
         try:
-            if(line[1]=="2" or line[1]=="3"):
+            if((line[1]=="2" or line[1]=="3") and line[0]=="G" and line[2]==" "):
                 line = line[:1] + "1" + line[1 + 1:]
                 newFile.write("G0 Z1 \n")
                 newFile.write(line)

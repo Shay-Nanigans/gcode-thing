@@ -3,9 +3,13 @@
 import os
 import math
 
-dirIn = "H:/Bots/gcode thing/gcodein"
-dirOut = "H:/Bots/gcode thing/gcodeout"
-dirProc = "H:/Bots/gcode thing/gcodeprocessed"
+filePath=os.path.dirname(os.path.realpath(__file__))
+
+dirIn = filePath+"/gcodein"
+dirOut = filePath+"/gcodeout"
+dirProc = filePath+"/gcodeprocessed"
+print(dirIn)
+
 
 arcLineSize=0.5 #line length. in units? probably millimeters
 

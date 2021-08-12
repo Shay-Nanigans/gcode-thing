@@ -15,7 +15,7 @@ print(dirIn)
 #printer settings (in mm)
 # printerWidth=200    
 # printerHeight=200
-imgDetail=0.2 #how fine to slice. in mm
+imgDetail=0.1 #how fine to slice. in mm
 
 #pen X Y Z. These should probably be negative
 offsetX=-50
@@ -30,8 +30,8 @@ blackZ= 0    #number of millimeters pen gets pushed into the plate when drawing 
 trueBlack=50 #everything equal or lower than this is black
 trueWhite=200 #everything equal or higher is white
 
-imgMaxSizeX=100 #max x size of image
-imgMaxSizeY=100 #max y size of image
+imgMaxSizeX=200 #max x size of image
+imgMaxSizeY=200 #max y size of image
 
 
 def arrayPrint(arr):
@@ -65,7 +65,7 @@ def toPixelArray(fileName):
     imgArr = []
     for row in range(0,img.height):
         rowLst=[]
-        for col in range(0,img.width):
+        for col in reversed(range(0,img.width)):
             dot=px[col,row]
             rowLst.append(int((dot[0]+dot[1]+dot[2])/3))
         imgArr.append(rowLst)
@@ -149,7 +149,6 @@ def findSpiral(imgArrBlack, gcodeStr, col, row):
 def spiralGCode(imgArrBlack, gcodeStr):
     row = 0
     col = 0
-    gcodeStr=[]
     print(str(len(imgArrBlack))+" "+str(len(imgArrBlack[0])))
     while(row<len(imgArrBlack)):
         # print(imgArrBlack[row])

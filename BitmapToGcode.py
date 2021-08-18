@@ -15,23 +15,25 @@ print(dirIn)
 #printer settings (in mm)
 # printerWidth=200    
 # printerHeight=200
-imgDetail=0.1 #how fine to slice. in mm
+imgDetail=0.2 #how fine to slice. in mm
 
 #pen X Y Z. These should probably be negative
-offsetX=-50
-offsetY=-30
-offsetZ=-10 #pen dropped touching the plate
+offsetX=-100
+offsetY=-60
+offsetZ=-5 #pen dropped touching the plate
 
 #pen heights
-liftedZ=1   #number of millimeters pen gets lifted above the plate
-blackZ= 0    #number of millimeters pen gets pushed into the plate when drawing black
+liftedZ=10   #number of millimeters pen gets lifted above the plate
+blackZ= 0    #number of millimeters pen gets lifted above the plate when drawing black
+greyDarkZ = 5 #darkest grey   (1/255)
+greyLightZ = 10 #lightest grey (254/255) This should be higher than greyDarkZ
 
 #image settings
 trueBlack=50 #everything equal or lower than this is black
-trueWhite=200 #everything equal or higher is white
+trueWhite=230 #everything equal or higher is white
 
-imgMaxSizeX=200 #max x size of image
-imgMaxSizeY=200 #max y size of image
+imgMaxSizeX=100 #max x size of image
+imgMaxSizeY=100 #max y size of image
 
 
 def arrayPrint(arr):
@@ -42,7 +44,7 @@ def arrayPrint(arr):
             strArr = strArr + str(x) + " "
         print(strArr)
         
-
+#initial Gcode at the start of the gcode file.
 def initialG():
     gcodeStr=[]
     gcodeStr.append("G21")
@@ -113,6 +115,8 @@ def printerPixel(imgArr):
                 pass
             
     return newArr
+
+    #finds a spiral with 
 def findSpiral(imgArrBlack, gcodeStr, col, row):
     lastPosition=4 # where X is center
     # 5 6 7 
@@ -123,7 +127,7 @@ def findSpiral(imgArrBlack, gcodeStr, col, row):
 
     gcodeStr.append("G0 Z"+str(liftedZ))
     gcodeStr.append("G0 X"+str(col*imgDetail)+" Y"+str(row*imgDetail))
-    gcodeStr.append("G0 Z"+str(-blackZ))
+    gcodeStr.append("G0 Z"+str(blackZ))
     imgArrBlack[row][col]=False
 
     
@@ -161,6 +165,26 @@ def spiralGCode(imgArrBlack, gcodeStr):
         row=row+1
     return gcodeStr
 
+def zigZagGrey(imgArrGrey, gcodeStr):
+    lastWhite=False
+    for row in range(0, len(imgArrGrey)):
+        if not lastWhite:
+            gcodeStr.append("G0 Z"+str(liftedZ))
+            lastWhite=True
+        for col in range(0,len(imgArrGrey[row])):
+            if imgArrGrey[row][col]==255:
+                if not lastWhite:
+                    gcodeStr.append("G0 Z"+str(liftedZ))
+            else:
+                if lastWhite:
+                    gcodeStr.append("G0 X" + str(col*imgDetail)+" Y"+ str(row*imgDetail))
+                    gcodeStr.append("G0 Z" + str(greyDarkZ+(greyLightZ-greyDarkZ)*(float(imgArrGrey[row][col])/255)))
+                else:
+                    gcodeStr.append("G0 X" + str(col*imgDetail)+" Y"+ str(row*imgDetail) +" Z" + str(greyDarkZ+(greyLightZ-greyDarkZ)*(float(imgArrGrey[row][col])/255)))
+            lastWhite = imgArrGrey[row][col]==255
+    gcodeStr.append("G0 Z"+str(liftedZ))
+    return gcodeStr
+
 
 def splitBlack(imgArr):
     imgArrBlack=[]
@@ -185,21 +209,10 @@ def convert(fileName):
     imgArr = whiteoutBlackout(imgArr)
     imgArr2 = printerPixel(imgArr)
     imgArrBlack, imgArrGrey = splitBlack(imgArr2)
-    # print(len(imgArr2))
-    # print(len(imgArr2[0]))
-    # arrayPrint(imgArr2)
-    # print("---------------------------")
-    # print(len(imgArrBlack))
-    # print(len(imgArrBlack[0]))
-    # arrayPrint(imgArrBlack)
-    # print("---------------------------")
-    # print(len(imgArrGrey))
-    # print(len(imgArrGrey[0]))
-    # arrayPrint(imgArrGrey)
     arrayPrint(imgArrBlack)
     gcodeStr= initialG()
     gcodeStr=spiralGCode(imgArrBlack, gcodeStr)
-
+    gcodeStr= zigZagGrey(imgArrGrey,gcodeStr)
     return gcodeStr
 
 def writeFile(newFile,gcodeStr):

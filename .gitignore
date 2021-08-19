@@ -2,3 +2,4 @@ gcodeout/*
 gcodein/*
 gcodeprocessed/*
 imgin/*
+config.json

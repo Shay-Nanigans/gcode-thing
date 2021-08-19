@@ -1,0 +1,24 @@
+{
+    "file" : {
+        "dirIn": "gcodein",
+        "dirInImg": "imgin",
+        "dirOut":"gcodeout",
+        "dirProc": "gcodeprocessed"
+    },
+    "printerSettings":{
+        "imgDetail": 0.1,
+        "offsetXYZ":[100, 60, 5],
+        "imgMaxSize":[100,100],
+        "penHeights":{
+            "liftedZ": 10,
+            "blackZ" : 0,
+            "greyDarkZ" : 2,
+            "greyLightZ" : 10
+        }
+    },
+    "imageSettings":{
+        "trueBlack": 50,
+        "trueWhite": 230,
+        "minAppend":2
+    }
+}

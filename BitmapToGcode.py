@@ -127,7 +127,7 @@ def printerPixel(imgArr):
 
     #finds a spiral with 
 def findSpiral(imgArrBlack, gcodeStr, col, row):
-    lastPosition=4 # where X is center
+    lastPosition=6 # where X is center
     # 5 6 7 
     # 4 X 0
     # 3 2 1
@@ -141,7 +141,8 @@ def findSpiral(imgArrBlack, gcodeStr, col, row):
     imgArrBlack[row][col]=False
 
     
-    posCheck=5
+    posCheck=lastPosition+1
+    if posCheck>7: posCheck=posCheck-8
     appended=0
     while posCheck!=lastPosition:
         if(row+cardinalDir[posCheck][0]>=0 and col+cardinalDir[posCheck][1]>=0 and row+cardinalDir[posCheck][0]<len(imgArrBlack) and col+cardinalDir[posCheck][1]<len(imgArrBlack[0])):
@@ -151,9 +152,13 @@ def findSpiral(imgArrBlack, gcodeStr, col, row):
                 gcodeAddStr.append("G0 X"+str(col*imgDetail)+" Y"+str(row*imgDetail))
                 imgArrBlack[row][col]=False
                 posCheck=posCheck+4
+                lastPosition=posCheck
+                if lastPosition>7: lastPosition=lastPosition-8
                 appended=appended+1
         posCheck=posCheck+1
         if posCheck>7: posCheck=posCheck-8
+        if appended%100==0 and appended>0:
+            print(appended)
         
     gcodeAddStr.append("G0 Z"+str(liftedZ))
     print("Appended: "+str(appended))
@@ -169,19 +174,19 @@ def spiralGCode(imgArrBlack, gcodeStr):
     print(str(len(imgArrBlack))+" "+str(len(imgArrBlack[0])))
     while(row<len(imgArrBlack)):
         # print(imgArrBlack[row])
-        if row%2 == 0:
-            col=0
-            while(col<len(imgArrBlack[row])):
-                if(imgArrBlack[row][col]==True):
-                    gcodeStr=findSpiral(imgArrBlack,gcodeStr,col,row)
-                col=col+1
-        else:
-            col=len(imgArrBlack[row])-1
-            while(col>0):
-                if(imgArrBlack[row][col]==True):
-                    gcodeStr=findSpiral(imgArrBlack,gcodeStr,col,row)
+        # if row%2 == 0:
+        col=0
+        while(col<len(imgArrBlack[row])):
+            if(imgArrBlack[row][col]==True):
+                gcodeStr=findSpiral(imgArrBlack,gcodeStr,col,row)
+            col=col+1
+        # else:
+        #     col=len(imgArrBlack[row])-1
+        #     while(col>0):
+        #         if(imgArrBlack[row][col]==True):
+        #             gcodeStr=findSpiral(imgArrBlack,gcodeStr,col,row)
 
-                col=col-1
+        #         col=col-1
 
         row=row+1
     return gcodeStr

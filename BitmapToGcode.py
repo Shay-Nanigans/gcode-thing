@@ -1,5 +1,6 @@
 #draws a fuckton of tiny lines and pretends its an arc.
 
+from ntpath import join
 import os
 import math
 from PIL import Image
@@ -113,8 +114,8 @@ def printerPixel(imgArr):
     else:
         pixelsPerImgPixel=len(imgArr)/yRes
 
-    print(len(newArr))
-    print(len(newArr[0]))
+    # print(len(newArr))
+    # print(len(newArr[0]))
     print(pixelsPerImgPixel)
     for y in range(0,yRes):
         for x in range(0,xRes):
@@ -125,7 +126,7 @@ def printerPixel(imgArr):
             
     return newArr
 
-    #finds a spiral with 
+    #finds a spiral with the classic old maze turn left algorithm
 def findSpiral(imgArrBlack, gcodeStr, col, row):
     lastPosition=6 # where X is center
     # 5 6 7 
@@ -135,9 +136,10 @@ def findSpiral(imgArrBlack, gcodeStr, col, row):
 
     gcodeAddStr=[]
 
-    gcodeAddStr.append("G0 Z"+str(liftedZ))
-    gcodeAddStr.append("G0 X"+str(col*imgDetail)+" Y"+str(row*imgDetail))
-    gcodeAddStr.append("G0 Z"+str(blackZ))
+    gcodeAddStr.append([row, col])
+    # gcodeAddStr.append("G0 Z"+str(liftedZ))
+    # gcodeAddStr.append("G0 X"+str(col*imgDetail)+" Y"+str(row*imgDetail))
+    # gcodeAddStr.append("G0 Z"+str(blackZ))
     imgArrBlack[row][col]=False
 
     
@@ -149,36 +151,139 @@ def findSpiral(imgArrBlack, gcodeStr, col, row):
             if(imgArrBlack[row+cardinalDir[posCheck][0]][col+cardinalDir[posCheck][1]]):
                 row=row+cardinalDir[posCheck][0]
                 col=col+cardinalDir[posCheck][1]
-                gcodeAddStr.append("G0 X"+str(col*imgDetail)+" Y"+str(row*imgDetail))
+                gcodeAddStr.append([row, col])
                 imgArrBlack[row][col]=False
                 posCheck=posCheck+4
                 lastPosition=posCheck
                 if lastPosition>7: lastPosition=lastPosition-8
                 appended=appended+1
+                # if appended%100==0 and appended>0:
+                #     print(appended)
+                    
         posCheck=posCheck+1
         if posCheck>7: posCheck=posCheck-8
-        if appended%100==0 and appended>0:
-            print(appended)
         
-    gcodeAddStr.append("G0 Z"+str(liftedZ))
-    print("Appended: "+str(appended))
-    if appended>=minAppend:
-        for line in gcodeAddStr:
-            gcodeStr.append(line)
-    return gcodeStr
+    # gcodeAddStr.append("G0 Z"+str(liftedZ))
+    # print("Appended: "+str(appended))
+    # if appended>=minAppend:
+    #     for line in gcodeAddStr:
+    #         gcodeStr.append(line)
+    return gcodeAddStr
 
 
+#nightmarish code to rebuild the spiral list 
+def addSpiral(spirals, newSpiral):
+    newSpirals=[]
+    joinedFlag = False
+    #print(newSpiral)
+    for spiral in spirals: #checks the new spiral against every old one.
+        if(joinedFlag):
+            newSpirals.append(spiral)
+        elif newSpiral==None:
+            newSpirals.append(spiral)
+        elif not spiral==None:
+            #checks if start of new spiral is beside end of the old spiral
+            if len(spiral)==1:
+                i=0
+                while (i<len(newSpiral)) and not joinedFlag:
+                    if abs(newSpiral[i][0]-spiral[0][0]) <= 1 and abs(newSpiral[i][1]-spiral[0][1]) <= 1:
+                        newSpiral.insert(i,spiral[0])
+                        joinedFlag = True
+                    i=i+1
+                if not joinedFlag:
+                    newSpirals.append(spiral)
+
+            elif abs(newSpiral[0][0]-spiral[len(spiral)-1][0])<=1 and abs(newSpiral[0][1]-spiral[len(spiral)-1][1])<=1:
+                newSpiral = spiral.extend(newSpiral) 
+                joinedFlag = True
+            #checks end of the new spiral against the beginning of the old one
+            elif abs(newSpiral[len(newSpiral)-1][0]-spiral[0][0])<=1 and abs(newSpiral[len(newSpiral)-1][1]-spiral[0][1])<=1:
+                newSpiral = newSpiral.extend(spiral)
+                joinedFlag = True
+            #start to start
+            elif abs(newSpiral[0][0]-spiral[0][0])<=1 and abs(newSpiral[0][1]-spiral[0][1])<=1:
+                newSpiral = list(reversed(spiral)).extend(newSpiral)
+                joinedFlag = True
+            #end to end
+            elif abs(newSpiral[len(newSpiral)-1][0]-spiral[len(spiral)-1][0])<=1 and abs(newSpiral[len(newSpiral)-1][1]-spiral[len(spiral)-1][1])<=1:
+                newSpiral = spiral.extend(reversed(newSpiral))
+                joinedFlag = True
+
+            else:
+                #dont mind the madness as it tried to join the middle of things
+                i=0
+                while (i<len(newSpiral)-1) and not joinedFlag:
+
+                    #checks if the beginning of a spiral and the end of a spiral can be put in between two spots
+                    if abs(newSpiral[i][0]-spiral[0][0])<=1 and abs(newSpiral[i][1]-spiral[0][1])<=1 and abs(newSpiral[i+1][0]-spiral[len(spiral)-1][0])<=1 and abs(newSpiral[i+1][1]-spiral[len(spiral)-1][1])<=1:
+                        newSpiral[i:i]=spiral
+                        joinedFlag = True
+                    #same but backwards
+                    elif abs(newSpiral[i+1][0]-spiral[0][0])<=1 and abs(newSpiral[i+1][1]-spiral[0][1])<=1 and abs(newSpiral[i][0]-spiral[len(spiral)-1][0])<=1 and abs(newSpiral[i][1]-spiral[len(spiral)-1][1])<=1:
+                        newSpiral[i:i]=reversed(spiral)
+                        joinedFlag = True
+                    
+                    
+                    i=i+1
+
+                i=0
+                while (i<len(spiral)-1) and not joinedFlag:
+
+                    #checks if the beginning of a spiral and the end of a spiral can be put in between two spots
+                    if abs(newSpiral[0][0]-spiral[i][0])<=1 and abs(newSpiral[0][1]-spiral[i][1])<=1 and abs(newSpiral[len(newSpiral)-1][0]-spiral[i+1][0])<=1 and abs(newSpiral[len(newSpiral)-1][1]-spiral[i+1][1])<=1:
+                        spiral[i:i]=newSpiral
+                        newSpiral=spiral
+                        joinedFlag = True
+                    #same but backwards
+                    elif abs(newSpiral[0][0]-spiral[i+1][0])<=1 and abs(newSpiral[0][1]-spiral[i+1][1])<=1 and abs(newSpiral[len(newSpiral)-1][0]-spiral[i][0])<=1 and abs(newSpiral[len(newSpiral)-1][1]-spiral[i][1])<=1:
+                        spiral[i:i]=reversed(newSpiral)
+                        newSpiral=spiral
+                        joinedFlag = True
+                    
+                    
+                    i=i+1
+
+
+
+                if not joinedFlag:
+                    newSpirals.append(spiral)
+    print(len(newSpirals))
+    if(joinedFlag):
+        newSpirals = addSpiral(newSpirals, newSpiral)
+    else:
+        newSpirals.append(newSpiral)
+    
+    return newSpirals
+
+
+def findClosestStart(row,col,spirals):
+    closeDistance=(imgMaxSizeX+imgMaxSizeY)/imgDetail
+    closest=0
+    i=0
+    while i<len(spirals):
+        dist=math.sqrt((row-spirals[i][0][0])**2 + (col-spirals[i][0][1])**2)
+        if dist<closeDistance:
+            closeDistance = dist
+            closest = i
+        i=i+1
+    closest=spirals.pop(closest)
+    return closest, spirals
+
+#finds all the spirals needed for the code.
+#horribly ineffecient and bruteforcy, but a second on the cpu saves an hour on the printer
 def spiralGCode(imgArrBlack, gcodeStr):
     row = 0
     col = 0
-    print(str(len(imgArrBlack))+" "+str(len(imgArrBlack[0])))
+    print("Size: "+ str(len(imgArrBlack))+" "+str(len(imgArrBlack[0])))
+    spirals=[]
     while(row<len(imgArrBlack)):
         # print(imgArrBlack[row])
         # if row%2 == 0:
         col=0
         while(col<len(imgArrBlack[row])):
             if(imgArrBlack[row][col]==True):
-                gcodeStr=findSpiral(imgArrBlack,gcodeStr,col,row)
+                spirals.append(findSpiral(imgArrBlack,gcodeStr,col,row))
+                
             col=col+1
         # else:
         #     col=len(imgArrBlack[row])-1
@@ -189,6 +294,52 @@ def spiralGCode(imgArrBlack, gcodeStr):
         #         col=col-1
 
         row=row+1
+    spirals.sort(key=len)
+    originalSpirals = len(spirals)
+
+    #conbines any ajacent spirals
+    newSpirals=[]
+    for spiral in spirals:
+        print("len: "+str(len(spiral)))
+        newSpirals=addSpiral(newSpirals, spiral)
+    spirals = newSpirals
+
+    #drops any small spirals
+    newSpirals=[]
+    tooSmall = 0
+    for spiral in reversed(spirals):
+        if(len(spiral) < minAppend):
+            tooSmall=tooSmall+1
+        else:
+            newSpirals.append(spiral)
+    spirals = newSpirals
+
+    #orders them so the distance of the ends are as close together as possible
+    newSpirals=[]
+    spiral=spirals.pop(0)
+    newSpirals.append(spiral)
+    while len(spirals)>0:
+        row=spiral[len(spiral)-1][0]
+        col=spiral[len(spiral)-1][1]
+        spiral,spirals = findClosestStart(row, col,spirals)
+        newSpirals.append(spiral)
+    spirals=newSpirals
+
+
+
+    spiralLen=["Dots in spiral: "]
+    for spiral in spirals:
+        gcodeStr.append("G0 Z"+str(liftedZ))
+        gcodeStr.append("G0 X"+str(spiral[0][1]*imgDetail)+" Y"+str(spiral[0][0]*imgDetail))
+        gcodeStr.append("G0 Z"+str(blackZ))
+        spiralLen.append(len(spiral))
+        for dot in spiral:
+            gcodeStr.append("G0 X"+str(dot[1]*imgDetail)+" Y"+str(dot[0]*imgDetail))
+    print(spiralLen)
+    print("total spirals made: " + str(originalSpirals))
+    print("Small spirals dropped: "+str(tooSmall))
+    print("total spirals added: " + str(len(spirals)))
+    gcodeStr.append("G0 Z"+str(liftedZ))
     return gcodeStr
 
 def zigZagGrey(imgArrGrey,imgArrBlack, gcodeStr):
@@ -232,11 +383,12 @@ def splitBlack(imgArr):
 
 
 def convert(fileName):
+    print(fileName)
     imgArr = toPixelArray(fileName)
     imgArr = whiteoutBlackout(imgArr)
     imgArr2 = printerPixel(imgArr)
     imgArrBlack, imgArrGrey = splitBlack(imgArr2)
-    arrayPrint(imgArrBlack)
+    #arrayPrint(imgArrBlack)
     gcodeStr= initialG()
     gcodeStr=spiralGCode(imgArrBlack, gcodeStr)
     gcodeStr= zigZagGrey(imgArrGrey, imgArrBlack ,gcodeStr)

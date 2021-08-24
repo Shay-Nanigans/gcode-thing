@@ -182,7 +182,8 @@ def addSpiral(spirals, newSpiral):
         elif newSpiral==None:
             newSpirals.append(spiral)
         elif not spiral==None:
-            #checks if start of new spiral is beside end of the old spiral
+            
+            #checks if the spiral is a dot, and tries to add it to the side of another 
             if len(spiral)==1:
                 i=0
                 while (i<len(newSpiral)) and not joinedFlag:
@@ -190,23 +191,22 @@ def addSpiral(spirals, newSpiral):
                         newSpiral.insert(i,spiral[0])
                         joinedFlag = True
                     i=i+1
-                if not joinedFlag:
-                    newSpirals.append(spiral)
 
+            #checks if start of new spiral is beside end of the old spiral
             elif abs(newSpiral[0][0]-spiral[len(spiral)-1][0])<=1 and abs(newSpiral[0][1]-spiral[len(spiral)-1][1])<=1:
-                newSpiral = spiral.extend(newSpiral) 
+                newSpiral = spiral + newSpiral
                 joinedFlag = True
             #checks end of the new spiral against the beginning of the old one
             elif abs(newSpiral[len(newSpiral)-1][0]-spiral[0][0])<=1 and abs(newSpiral[len(newSpiral)-1][1]-spiral[0][1])<=1:
-                newSpiral = newSpiral.extend(spiral)
+                newSpiral = newSpiral + spiral
                 joinedFlag = True
             #start to start
             elif abs(newSpiral[0][0]-spiral[0][0])<=1 and abs(newSpiral[0][1]-spiral[0][1])<=1:
-                newSpiral = list(reversed(spiral)).extend(newSpiral)
+                newSpiral = list(reversed(spiral)) + newSpiral
                 joinedFlag = True
             #end to end
             elif abs(newSpiral[len(newSpiral)-1][0]-spiral[len(spiral)-1][0])<=1 and abs(newSpiral[len(newSpiral)-1][1]-spiral[len(spiral)-1][1])<=1:
-                newSpiral = spiral.extend(reversed(newSpiral))
+                newSpiral = spiral + list(reversed(newSpiral))
                 joinedFlag = True
 
             else:
@@ -220,7 +220,7 @@ def addSpiral(spirals, newSpiral):
                         joinedFlag = True
                     #same but backwards
                     elif abs(newSpiral[i+1][0]-spiral[0][0])<=1 and abs(newSpiral[i+1][1]-spiral[0][1])<=1 and abs(newSpiral[i][0]-spiral[len(spiral)-1][0])<=1 and abs(newSpiral[i][1]-spiral[len(spiral)-1][1])<=1:
-                        newSpiral[i:i]=reversed(spiral)
+                        newSpiral[i:i]=list(reversed(spiral))
                         joinedFlag = True
                     
                     
@@ -236,17 +236,16 @@ def addSpiral(spirals, newSpiral):
                         joinedFlag = True
                     #same but backwards
                     elif abs(newSpiral[0][0]-spiral[i+1][0])<=1 and abs(newSpiral[0][1]-spiral[i+1][1])<=1 and abs(newSpiral[len(newSpiral)-1][0]-spiral[i][0])<=1 and abs(newSpiral[len(newSpiral)-1][1]-spiral[i][1])<=1:
-                        spiral[i:i]=reversed(newSpiral)
+                        spiral[i:i]=list(reversed(newSpiral))
                         newSpiral=spiral
                         joinedFlag = True
                     
                     
                     i=i+1
+            if not joinedFlag:
+                newSpirals.append(spiral)
 
 
-
-                if not joinedFlag:
-                    newSpirals.append(spiral)
     print(len(newSpirals))
     if(joinedFlag):
         newSpirals = addSpiral(newSpirals, newSpiral)
@@ -258,16 +257,24 @@ def addSpiral(spirals, newSpiral):
 
 def findClosestStart(row,col,spirals):
     closeDistance=(imgMaxSizeX+imgMaxSizeY)/imgDetail
-    closest=0
+    closest=0 , True
     i=0
     while i<len(spirals):
         dist=math.sqrt((row-spirals[i][0][0])**2 + (col-spirals[i][0][1])**2)
         if dist<closeDistance:
             closeDistance = dist
-            closest = i
+            closest = i , True
+        dist=math.sqrt((row-spirals[i][len(spirals[i])-1][0])**2 + (col-spirals[i][len(spirals[i])-1][1])**2)
+        if dist<closeDistance:
+            closeDistance = dist
+            closest = i , False
         i=i+1
-    closest=spirals.pop(closest)
-    return closest, spirals
+    if closest[1]:
+        closest=spirals.pop(closest[0])
+        return closest, spirals
+    else: 
+        closest=spirals.pop(closest[0])
+        return list(reversed(closest)), spirals
 
 #finds all the spirals needed for the code.
 #horribly ineffecient and bruteforcy, but a second on the cpu saves an hour on the printer

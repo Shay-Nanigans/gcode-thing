@@ -276,11 +276,30 @@ def findClosestStart(row,col,spirals):
         closest=spirals.pop(closest[0])
         return list(reversed(closest)), spirals
 
+def endToEndCheck(spiral1,spiral2,imgArrBlackOriginal):
+    if abs(spiral2[0][0]-spiral1[len(spiral1)-1][0])<=1 and abs(spiral2[0][1]-spiral1[len(spiral1)-1][1])<=1:
+        return True
+    deltaRow=spiral1[len(spiral1)-1][0]-spiral2[0][0]
+    deltaCol=spiral1[len(spiral1)-1][1]-spiral2[0][1]
+    dist=math.sqrt((deltaRow)**2+(deltaCol)**2)
+    allBlack=True
+    for i in range(0, int(dist)):
+        allBlack=allBlack and imgArrBlackOriginal[int((spiral1[len(spiral1)-1][0]*i)/dist+(spiral2[0][0]*(dist-i)/dist))][int((spiral1[len(spiral1)-1][1]*i)/dist+(spiral2[0][1]*(dist-i)/dist))]
+    return allBlack
+
 #finds all the spirals needed for the code.
 #horribly ineffecient and bruteforcy, but a second on the cpu saves an hour on the printer
 def spiralGCode(imgArrBlack, gcodeStr):
     row = 0
     col = 0
+    imgArrBlackOriginal = []
+    for row2 in imgArrBlack:
+        newRow=[]
+        for col2 in row2:
+            newRow.append(col2)
+        imgArrBlackOriginal.append(newRow)
+    
+
     print("Size: "+ str(len(imgArrBlack))+" "+str(len(imgArrBlack[0])))
     spirals=[]
     while(row<len(imgArrBlack)):
@@ -312,27 +331,10 @@ def spiralGCode(imgArrBlack, gcodeStr):
     spirals = newSpirals
 
     #drops any small spirals
-    newSpirals=[]
-    tooSmall = 0
-    for spiral in reversed(spirals):
-        if(len(spiral) < minAppend):
-            tooSmall=tooSmall+1
-        else:
-            newSpirals.append(spiral)
-    spirals = newSpirals
+    spirals, tooSmall = smallDrop(spirals)
 
     #orders them so the distance of the ends are as close together as possible
-    newSpirals=[]
-    spiral=spirals.pop(0)
-    newSpirals.append(spiral)
-    while len(spirals)>0:
-        row=spiral[len(spiral)-1][0]
-        col=spiral[len(spiral)-1][1]
-        spiral,spirals = findClosestStart(row, col,spirals)
-        newSpirals.append(spiral)
-    spirals=newSpirals
-
-
+    spirals, hopsSkipped = gapClose(spirals, imgArrBlackOriginal)
 
     spiralLen=["Dots in spiral: "]
     for spiral in spirals:
@@ -345,10 +347,40 @@ def spiralGCode(imgArrBlack, gcodeStr):
     print(spiralLen)
     print("total spirals made: " + str(originalSpirals))
     print("Small spirals dropped: "+str(tooSmall))
+    print("Hops Skipped: "+str(hopsSkipped))
     print("total spirals added: " + str(len(spirals)))
     gcodeStr.append("G0 Z"+str(liftedZ))
     return gcodeStr
 
+#drops any small spirals
+def smallDrop(spirals):
+    newSpirals=[]
+    tooSmall = 0
+    for spiral in reversed(spirals):
+        if(len(spiral) < minAppend):
+            tooSmall=tooSmall+1
+        else:
+            newSpirals.append(spiral)
+    return newSpirals, tooSmall
+
+#orders them so the distance of the ends are as close together as possible
+def gapClose(spirals,imgArrBlack):
+    hopsSkipped=0
+    newSpirals=[]
+    spiral=spirals.pop(0)
+    newSpirals.append(spiral)
+    while len(spirals)>0:
+        row=spiral[len(spiral)-1][0]
+        col=spiral[len(spiral)-1][1]
+        spiral,spirals = findClosestStart(row, col,spirals)
+        if (endToEndCheck(newSpirals[len(newSpirals)-1],spiral,imgArrBlack)):
+            newSpirals[len(newSpirals)-1]=newSpirals[len(newSpirals)-1]+spiral
+            hopsSkipped=hopsSkipped+1
+        else:
+            newSpirals.append(spiral)
+    return newSpirals, hopsSkipped
+
+#literally just goes back and forth to draw greyscale areas.
 def zigZagGrey(imgArrGrey,imgArrBlack, gcodeStr):
     lastWhite=False
     for row in range(0, len(imgArrGrey)):
@@ -368,6 +400,54 @@ def zigZagGrey(imgArrGrey,imgArrBlack, gcodeStr):
                         gcodeStr.append("G0 X" + str(col*imgDetail)+" Y"+ str(row*imgDetail) +" Z" + str(greyDarkZ+(greyLightZ-greyDarkZ)*(float(imgArrGrey[row][col])/255)))
                 lastWhite = imgArrGrey[row][col]==255
     gcodeStr.append("G0 Z"+str(liftedZ))
+    return gcodeStr
+
+#returns lines of it going back and forth to draw greyscale areas.
+def linesGrey(imgArrGrey):
+    lastWhite=True
+    lines=[]
+    newLine = []
+    for row in range(0, len(imgArrGrey)):
+        if not lastWhite:
+            lastWhite=True
+            if len(newLine) > 0:
+                lines.append(newLine)
+                newLine = []
+        for col in range(0,len(imgArrGrey[row])):
+            if imgArrGrey[row][col]==255:
+                if not lastWhite:
+                    lastWhite=True
+                    if len(newLine) > 0:
+                        lines.append(newLine)
+                        newLine = []
+            else:
+                newLine.append([row, col, imgArrGrey[row][col]])
+            lastWhite = imgArrGrey[row][col]==255
+    if len(newLine) > 0:
+        lines.append(newLine)
+    return lines
+
+def linesGreyGcode(imgArrGrey, imgArrBlack ,gcodeStr):
+    lines = linesGrey(imgArrGrey)
+    originalLines = len(lines)
+    lines, tooSmall = smallDrop(lines)
+    lines, hopsSkipped = gapClose(lines, imgArrBlack)
+
+    lineLen=[]
+    for line in lines:
+        gcodeStr.append("G0 Z"+str(liftedZ))
+        gcodeStr.append("G0 X"+str(line[0][1]*imgDetail)+" Y"+str(line[0][0]*imgDetail))
+        gcodeStr.append("G0 Z"+str(greyDarkZ+ float((greyLightZ-greyDarkZ)*line[0][2])/255 ) )
+        lineLen.append(len(line))
+        for dot in line:
+            gcodeStr.append("G0 X"+str(dot[1]*imgDetail)+" Y"+str(dot[0]*imgDetail)+ " Z"+str(greyDarkZ+ float((greyLightZ-greyDarkZ)*dot[2])/255 ))
+    gcodeStr.append("G0 Z"+str(liftedZ))
+
+    print("total lines made: " + str(originalLines))
+    print("Small lines dropped: "+str(tooSmall))
+    print("Hops Skipped: "+str(hopsSkipped))
+    print("total lines added: " + str(len(lines)))
+
     return gcodeStr
 
 
@@ -398,7 +478,10 @@ def convert(fileName):
     #arrayPrint(imgArrBlack)
     gcodeStr= initialG()
     gcodeStr=spiralGCode(imgArrBlack, gcodeStr)
-    gcodeStr= zigZagGrey(imgArrGrey, imgArrBlack ,gcodeStr)
+
+    imgArrBlack, imgArrGrey = splitBlack(imgArr2)
+    gcodeStr= linesGreyGcode(imgArrGrey, imgArrBlack ,gcodeStr)
+
     gcodeStr=finalStage(gcodeStr)
     return gcodeStr
 

@@ -1,4 +1,4 @@
-#draws a fuckton of tiny lines and pretends its an arc.
+#Converts bitmap image into a path
 
 from ntpath import join
 import os
@@ -18,6 +18,8 @@ dirProc = filePath+"/"+str(settings["file"]["dirProc"])
 
 #printer settings (in mm)
 imgDetail= settings["printerSettings"]["imgDetail"]#how fine to slice. in mm
+autoleveler= settings["printerSettings"]["autoleveler"]
+zGreyType= settings["printerSettings"]["zGreyType"] #the way to scale the shades of grey [linear|square|invsquare]
 
 #pen X Y Z. These should probably be negative
 offsetX=0-settings["printerSettings"]["offsetXYZ"][0]
@@ -25,6 +27,7 @@ offsetY=0-settings["printerSettings"]["offsetXYZ"][1]
 offsetZ=0-settings["printerSettings"]["offsetXYZ"][2] #pen dropped touching the plate
 
 #pen heights
+calibrateZ=settings["printerSettings"]["penHeights"]["calibrateZ"]  #number of millimeters to wait above the plate to calibrate pen
 liftedZ=settings["printerSettings"]["penHeights"]["liftedZ"]   #number of millimeters pen gets lifted above the plate
 blackZ= settings["printerSettings"]["penHeights"]["blackZ"]     #number of millimeters pen gets lifted above the plate when drawing black
 greyDarkZ = settings["printerSettings"]["penHeights"]["greyDarkZ"]  #darkest grey   (1/255)
@@ -55,12 +58,15 @@ def initialG():
     gcodeStr.append("G1 F7200")
     gcodeStr.append("G91")
     gcodeStr.append("G1 Z"+str(liftedZ*2))
+    gcodeStr.append("M206 X0 Y0 Z0")
     gcodeStr.append("G90")
-    gcodeStr.append("M206 X" + str(offsetX) +" Y"+str(offsetY)+" Z"+str(offsetZ) )
     gcodeStr.append("G28")
-    gcodeStr.append("G1 Z"+str(liftedZ))
+    if autoleveler: gcodeStr.append("M420 S1")
+    gcodeStr.append("M206 X" + str(offsetX) +" Y"+str(offsetY)+" Z"+str(offsetZ) )
+    gcodeStr.append("G1 Z"+str(calibrateZ))
     gcodeStr.append("G1 Y0")
     gcodeStr.append("G1 X0")
+    gcodeStr.append("M0")
     return gcodeStr
 
 def finalStage(gcodeStr):
@@ -435,12 +441,13 @@ def linesGreyGcode(imgArrGrey, imgArrBlack ,gcodeStr):
 
     lineLen=[]
     for line in lines:
+        print("len: "+str(len(line)))
         gcodeStr.append("G0 Z"+str(liftedZ))
         gcodeStr.append("G0 X"+str(line[0][1]*imgDetail)+" Y"+str(line[0][0]*imgDetail))
         gcodeStr.append("G0 Z"+str(greyDarkZ+ float((greyLightZ-greyDarkZ)*line[0][2])/255 ) )
         lineLen.append(len(line))
         for dot in line:
-            gcodeStr.append("G0 X"+str(dot[1]*imgDetail)+" Y"+str(dot[0]*imgDetail)+ " Z"+str(greyDarkZ+ float((greyLightZ-greyDarkZ)*dot[2])/255 ))
+            gcodeStr.append("G0 X"+str(dot[1]*imgDetail)+" Y"+str(dot[0]*imgDetail)+ " Z"+str(greyCalc(dot[2]))) 
     gcodeStr.append("G0 Z"+str(liftedZ))
 
     print("total lines made: " + str(originalLines))
@@ -450,6 +457,24 @@ def linesGreyGcode(imgArrGrey, imgArrBlack ,gcodeStr):
 
     return gcodeStr
 
+def greyCalc(shade):
+    percentshade = 0
+    if zGreyType == "linear":
+        percentshade = float(shade)/255 
+    elif zGreyType == "square":
+        percentshade = float(shade)/255 
+        percentshade = percentshade**2
+    elif zGreyType == "invsquare":
+        percentshade = float(shade)/255 
+        percentshade = math.sqrt(percentshade)
+    elif zGreyType == "cuberoot":
+        percentshade = float(shade)/255 
+        percentshade = percentshade**(1/3)
+    elif zGreyType == "log":
+        percentshade = float(shade)*math.e/255 
+        percentshade = math.log(percentshade)
+
+    return greyDarkZ+ float((greyLightZ-greyDarkZ)*percentshade)
 
 def splitBlack(imgArr):
     imgArrBlack=[]

@@ -6,19 +6,22 @@
         "dirProc": "gcodeprocessed"
     },
     "printerSettings":{
+        "autoleveler":true,
+        "zGreyType":"cuberoot",
         "imgDetail": 0.1,
-        "offsetXYZ":[100, 60, 5],
-        "imgMaxSize":[100,100],
+        "offsetXYZ":[0, 30, 2],
+        "imgMaxSize":[50,50],
         "penHeights":{
-            "liftedZ": 10,
-            "blackZ" : 0,
-            "greyDarkZ" : 2,
-            "greyLightZ" : 10
+            "calibrateZ": 8,
+            "liftedZ": 8.5,
+            "blackZ" : 5,
+            "greyDarkZ" : 6,
+            "greyLightZ" : 7.9
         }
     },
     "imageSettings":{
-        "trueBlack": 50,
-        "trueWhite": 230,
+        "trueBlack": 20,
+        "trueWhite": 253,
         "minAppend":2
     }
 }

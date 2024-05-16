@@ -8,9 +8,12 @@
     "printerSettings":{
         "autoleveler":true,
         "zGreyType":"cuberoot",
+        "greyDirection":"diagonal",
+        "singleShadeDirection":true,
+        "greyStepSize":0,
         "imgDetail": 0.1,
-        "offsetXYZ":[0, 30, 2],
-        "imgMaxSize":[50,50],
+        "offsetXYZ":[100, 80, 2],
+        "imgMaxSize":[51.2,51.2],
         "penHeights":{
             "calibrateZ": 8,
             "liftedZ": 8.5,

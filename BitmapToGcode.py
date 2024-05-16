@@ -20,6 +20,9 @@ dirProc = filePath+"/"+str(settings["file"]["dirProc"])
 imgDetail= settings["printerSettings"]["imgDetail"]#how fine to slice. in mm
 autoleveler= settings["printerSettings"]["autoleveler"]
 zGreyType= settings["printerSettings"]["zGreyType"] #the way to scale the shades of grey [linear|square|invsquare]
+greyDirection = settings["printerSettings"]["greyDirection"] #the orientation the grey lines get drawn
+singleShadeDirection = settings["printerSettings"]["singleShadeDirection"] #skips gapclose on the grey section to remove some artifacts (much slower)
+greyStepSize = settings["printerSettings"]["greyStepSize"] #size of sections of shading
 
 #pen X Y Z. These should probably be negative
 offsetX=0-settings["printerSettings"]["offsetXYZ"][0]
@@ -133,21 +136,20 @@ def printerPixel(imgArr):
     return newArr
 
     #finds a spiral with the classic old maze turn left algorithm
-def findSpiral(imgArrBlack, gcodeStr, col, row):
+def findSpiral(imgArrBlack, col, row):
     lastPosition=6 # where X is center
     # 5 6 7 
     # 4 X 0
     # 3 2 1
     cardinalDir=[[0,1],[1,1],[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1]]
 
-    gcodeAddStr=[]
+    line=[]
 
-    gcodeAddStr.append([row, col])
+    line.append([row, col])
     # gcodeAddStr.append("G0 Z"+str(liftedZ))
     # gcodeAddStr.append("G0 X"+str(col*imgDetail)+" Y"+str(row*imgDetail))
     # gcodeAddStr.append("G0 Z"+str(blackZ))
     imgArrBlack[row][col]=False
-
     
     posCheck=lastPosition+1
     if posCheck>7: posCheck=posCheck-8
@@ -157,7 +159,7 @@ def findSpiral(imgArrBlack, gcodeStr, col, row):
             if(imgArrBlack[row+cardinalDir[posCheck][0]][col+cardinalDir[posCheck][1]]):
                 row=row+cardinalDir[posCheck][0]
                 col=col+cardinalDir[posCheck][1]
-                gcodeAddStr.append([row, col])
+                line.append([row, col])
                 imgArrBlack[row][col]=False
                 posCheck=posCheck+4
                 lastPosition=posCheck
@@ -169,12 +171,7 @@ def findSpiral(imgArrBlack, gcodeStr, col, row):
         posCheck=posCheck+1
         if posCheck>7: posCheck=posCheck-8
         
-    # gcodeAddStr.append("G0 Z"+str(liftedZ))
-    # print("Appended: "+str(appended))
-    # if appended>=minAppend:
-    #     for line in gcodeAddStr:
-    #         gcodeStr.append(line)
-    return gcodeAddStr
+    return line
 
 
 #nightmarish code to rebuild the spiral list 
@@ -314,7 +311,7 @@ def spiralGCode(imgArrBlack, gcodeStr):
         col=0
         while(col<len(imgArrBlack[row])):
             if(imgArrBlack[row][col]==True):
-                spirals.append(findSpiral(imgArrBlack,gcodeStr,col,row))
+                spirals.append(findSpiral(imgArrBlack,col,row))
                 
             col=col+1
         # else:
@@ -409,7 +406,7 @@ def zigZagGrey(imgArrGrey,imgArrBlack, gcodeStr):
     return gcodeStr
 
 #returns lines of it going back and forth to draw greyscale areas.
-def linesGrey(imgArrGrey):
+def linesGrey(imgArrGrey, upperGrey = 254, lowerGrey = 0):
     lastWhite=True
     lines=[]
     newLine = []
@@ -420,7 +417,7 @@ def linesGrey(imgArrGrey):
                 lines.append(newLine)
                 newLine = []
         for col in range(0,len(imgArrGrey[row])):
-            if imgArrGrey[row][col]==255:
+            if imgArrGrey[row][col]>upperGrey or imgArrGrey[row][col]<lowerGrey:
                 if not lastWhite:
                     lastWhite=True
                     if len(newLine) > 0:
@@ -428,16 +425,107 @@ def linesGrey(imgArrGrey):
                         newLine = []
             else:
                 newLine.append([row, col, imgArrGrey[row][col]])
-            lastWhite = imgArrGrey[row][col]==255
+                lastWhite = False
+    if len(newLine) > 0:
+        lines.append(newLine)
+    return lines
+def linesGreyDiagonal(imgArrGrey, upperGrey = 254, lowerGrey = 0):
+    lastWhite=True
+    lines=[]
+    newLine = []
+
+    # move down the left side
+    for num in range(0, len(imgArrGrey)):
+        if not lastWhite:
+            lastWhite=True
+            if len(newLine) > 0:
+                lines.append(newLine)
+                newLine = []
+        for num2 in range(0,num):
+            #taller than wide skip logic
+            if num2 >= len(imgArrGrey[num]):
+                continue
+            #white pixel logic
+            elif imgArrGrey[num-num2][num2]>upperGrey or imgArrGrey[num-num2][num2]<lowerGrey:
+                if not lastWhite:
+                    lastWhite=True
+                    if len(newLine) > 0:
+                        print(newLine)
+                        lines.append(newLine)
+                        newLine = []
+            else:
+                newLine.append([num-num2, num2, imgArrGrey[num-num2][num2]])
+                lastWhite = False
+    if len(newLine) > 0:
+        lines.append(newLine)
+    lastWhite=True
+    newLine = []
+    #move accross the bottom
+    for num in range(1, len(imgArrGrey[0])): #starts at 1 to prevent duplicate of the bottom left diagonal
+        if not lastWhite:
+            lastWhite=True
+            if len(newLine) > 0:
+                lines.append(newLine)
+                newLine = []
+        for num2 in range(0,len(imgArrGrey[0])-num):
+            row = len(imgArrGrey)-1-num2
+            col = num2+num
+            #wider than tall skip logic
+            if row < 0 or col >=len(imgArrGrey[0]) or col < 0:
+                # print(f"[{row},{num2}]: SKIP")
+                pass
+            elif imgArrGrey[row][col]>upperGrey or imgArrGrey[row][col]<lowerGrey:
+                # print(f"[{row},{num2}]: WHITE")
+                if not lastWhite:
+                    lastWhite=True
+                    if newLine != []:
+                        print(f"2 {newLine}")
+                        lines.append(newLine)
+                        newLine = []
+                
+            else:
+                # print(f"[{row},{num2}]: {imgArrGrey[row][num2]}")
+                newLine.append([row, col, imgArrGrey[row][col]])
+                lastWhite = False
     if len(newLine) > 0:
         lines.append(newLine)
     return lines
 
 def linesGreyGcode(imgArrGrey, imgArrBlack ,gcodeStr):
-    lines = linesGrey(imgArrGrey)
+    if greyStepSize > 0 and greyStepSize<trueWhite-trueBlack:
+        currentLightness = trueWhite
+        lines = []
+        while currentLightness>trueBlack:
+            lowerGrey = currentLightness-greyStepSize
+            if lowerGrey< trueBlack:
+                lowerGrey = trueBlack+1
+
+            if greyDirection == "horizontal":
+                templines = linesGrey(imgArrGrey, currentLightness,lowerGrey)
+            elif greyDirection == "diagonal":
+                templines = linesGreyDiagonal(imgArrGrey, currentLightness,lowerGrey)
+
+            templines.sort(key=len)
+            #conbines any ajacent spirals
+            newLines=[]
+            for templine in templines:
+                newLines=addSpiral(newLines, templine)
+
+            lines = lines + newLines
+            currentLightness = currentLightness-greyStepSize
+
+    else:
+        if greyDirection == "horizontal":
+            lines = linesGrey(imgArrGrey)
+        elif greyDirection == "diagonal":
+            lines = linesGreyDiagonal(imgArrGrey)
     originalLines = len(lines)
     lines, tooSmall = smallDrop(lines)
-    lines, hopsSkipped = gapClose(lines, imgArrBlack)
+    if not singleShadeDirection:
+        lines, hopsSkipped = gapClose(lines, imgArrBlack)
+    else:
+        hopsSkipped = 0
+        lines.reverse()
 
     lineLen=[]
     for line in lines:

@@ -14,6 +14,7 @@
         "imgDetail": 0.1,
         "offsetXYZ":[100, 80, 2],
         "imgMaxSize":[51.2,51.2],
+        "maxSpeed": 15000,
         "penHeights":{
             "calibrateZ": 8,
             "liftedZ": 8.5,

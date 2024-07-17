@@ -1,6 +1,4 @@
 #Converts bitmap image into a path
-
-from ntpath import join
 import os
 import math
 from PIL import Image
@@ -23,6 +21,7 @@ zGreyType= settings["printerSettings"]["zGreyType"] #the way to scale the shades
 greyDirection = settings["printerSettings"]["greyDirection"] #the orientation the grey lines get drawn
 singleShadeDirection = settings["printerSettings"]["singleShadeDirection"] #skips gapclose on the grey section to remove some artifacts (much slower)
 greyStepSize = settings["printerSettings"]["greyStepSize"] #size of sections of shading
+maxSpeed = settings["printerSettings"]["maxSpeed"]
 
 #pen X Y Z. These should probably be negative
 offsetX=0-settings["printerSettings"]["offsetXYZ"][0]
@@ -54,17 +53,32 @@ def arrayPrint(arr):
             strArr = strArr + str(x) + " "
         print(strArr)
         
+def move(comm = "G0", x=None,y=None,z=None, f=None):
+    output = f'{comm} '
+    if x:
+        output = f'{output} X{x*imgDetail}'
+    if y:
+        output = f'{output} Y{y*imgDetail}'
+    if z:
+        output = f'{output} Z{z}'
+    if f:
+        output = f'{output} F{f}'
+    return output
+
 #initial Gcode at the start of the gcode file.
 def initialG():
     gcodeStr=[]
     gcodeStr.append("G21")
-    gcodeStr.append("G1 F7200")
+    gcodeStr.append(f"G0 F{maxSpeed}")
+    gcodeStr.append(f"G1 F{maxSpeed}")
     gcodeStr.append("G91")
     gcodeStr.append("G1 Z"+str(liftedZ*2))
     gcodeStr.append("M206 X0 Y0 Z0")
     gcodeStr.append("G90")
     gcodeStr.append("G28")
-    if autoleveler: gcodeStr.append("M420 S1")
+    if autoleveler: 
+        gcodeStr.append("M420 L1 S1")
+        gcodeStr.append("M420 S1")
     gcodeStr.append("M206 X" + str(offsetX) +" Y"+str(offsetY)+" Z"+str(offsetZ) )
     gcodeStr.append("G1 Z"+str(calibrateZ))
     gcodeStr.append("G1 Y0")
@@ -341,18 +355,18 @@ def spiralGCode(imgArrBlack, gcodeStr):
 
     spiralLen=["Dots in spiral: "]
     for spiral in spirals:
-        gcodeStr.append("G0 Z"+str(liftedZ))
-        gcodeStr.append("G0 X"+str(spiral[0][1]*imgDetail)+" Y"+str(spiral[0][0]*imgDetail))
-        gcodeStr.append("G0 Z"+str(blackZ))
+        gcodeStr.append(move(z=liftedZ))
+        gcodeStr.append(move(x=spiral[0][1], y=spiral[0][0]))
+        gcodeStr.append(move(z=blackZ))
         spiralLen.append(len(spiral))
         for dot in spiral:
-            gcodeStr.append("G0 X"+str(dot[1]*imgDetail)+" Y"+str(dot[0]*imgDetail))
+            gcodeStr.append(move(x=dot[1],y=dot[0]))
     print(spiralLen)
     print("total spirals made: " + str(originalSpirals))
     print("Small spirals dropped: "+str(tooSmall))
     print("Hops Skipped: "+str(hopsSkipped))
     print("total spirals added: " + str(len(spirals)))
-    gcodeStr.append("G0 Z"+str(liftedZ))
+    gcodeStr.append(move(z=liftedZ))
     return gcodeStr
 
 #drops any small spirals
@@ -388,21 +402,21 @@ def zigZagGrey(imgArrGrey,imgArrBlack, gcodeStr):
     lastWhite=False
     for row in range(0, len(imgArrGrey)):
         if not lastWhite:
-            gcodeStr.append("G0 Z"+str(liftedZ))
+            gcodeStr.append(move(z=liftedZ))
             lastWhite=True
         for col in range(0,len(imgArrGrey[row])):
             if not imgArrBlack[row][col]:
                 if imgArrGrey[row][col]==255:
                     if not lastWhite:
-                        gcodeStr.append("G0 Z"+str(liftedZ))
+                        gcodeStr.append(move(z=liftedZ))
                 else:
                     if lastWhite:
-                        gcodeStr.append("G0 X" + str(col*imgDetail)+" Y"+ str(row*imgDetail))
-                        gcodeStr.append("G0 Z" + str(greyDarkZ+(greyLightZ-greyDarkZ)*(float(imgArrGrey[row][col])/255)))
+                        gcodeStr.append(move(x=col,y=row))
+                        gcodeStr.append(move(z=greyDarkZ+(greyLightZ-greyDarkZ)*(float(imgArrGrey[row][col])/255)))
                     else:
-                        gcodeStr.append("G0 X" + str(col*imgDetail)+" Y"+ str(row*imgDetail) +" Z" + str(greyDarkZ+(greyLightZ-greyDarkZ)*(float(imgArrGrey[row][col])/255)))
+                        gcodeStr.append(move(x=col),y=row,z=greyDarkZ+(greyLightZ-greyDarkZ)*(float(imgArrGrey[row][col])/255))
                 lastWhite = imgArrGrey[row][col]==255
-    gcodeStr.append("G0 Z"+str(liftedZ))
+    gcodeStr.append(move(z=liftedZ))
     return gcodeStr
 
 #returns lines of it going back and forth to draw greyscale areas.
@@ -530,13 +544,13 @@ def linesGreyGcode(imgArrGrey, imgArrBlack ,gcodeStr):
     lineLen=[]
     for line in lines:
         print("len: "+str(len(line)))
-        gcodeStr.append("G0 Z"+str(liftedZ))
-        gcodeStr.append("G0 X"+str(line[0][1]*imgDetail)+" Y"+str(line[0][0]*imgDetail))
-        gcodeStr.append("G0 Z"+str(greyDarkZ+ float((greyLightZ-greyDarkZ)*line[0][2])/255 ) )
+        gcodeStr.append(move(z=liftedZ))
+        gcodeStr.append(move(x=line[0][1],y=line[0][0]))
+        gcodeStr.append(move(z=greyDarkZ+ float((greyLightZ-greyDarkZ)*line[0][2])/255 ))
         lineLen.append(len(line))
         for dot in line:
-            gcodeStr.append("G0 X"+str(dot[1]*imgDetail)+" Y"+str(dot[0]*imgDetail)+ " Z"+str(greyCalc(dot[2]))) 
-    gcodeStr.append("G0 Z"+str(liftedZ))
+            gcodeStr.append(move(x=dot[1],y=dot[0],z=greyCalc(dot[2])))
+    gcodeStr.append(move(z=liftedZ))
 
     print("total lines made: " + str(originalLines))
     print("Small lines dropped: "+str(tooSmall))
